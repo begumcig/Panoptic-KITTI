@@ -107,23 +107,24 @@ def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, cate
         prev_image_id = os.path.join(os.path.dirname(image_id), prev_image_number)
 
         
-        '''
-        vis_utils.save_parsing_result(
-            parsing_result=pan_gt_vis,
-            label_divisor=label_divisor,
-            thing_list=[11,13],
-            save_dir="./output",
-            filename=_PANOPTIC_LABEL_FORMAT % image_id,
-            colormap_name="cityscapes")
+        visualise = False
+        if visualise:
+            vis_utils.save_parsing_result(
+                parsing_result=pan_gt_vis,
+                label_divisor=label_divisor,
+                thing_list=[11,13],
+                save_dir="./output",
+                filename=_PANOPTIC_LABEL_FORMAT % image_id,
+                colormap_name="cityscapes")
+            
+            vis_utils.save_parsing_result(
+                parsing_result=pan_pred,
+                label_divisor=label_divisor,
+                thing_list=[11,13],
+                save_dir="./output",
+                filename=_PANOPTIC_PREDICTION_FORMAT % image_id,
+                colormap_name="cityscapes")
         
-        vis_utils.save_parsing_result(
-            parsing_result=pan_pred,
-            label_divisor=label_divisor,
-            thing_list=[11,13],
-            save_dir="./output",
-            filename=_PANOPTIC_PREDICTION_FORMAT % image_id,
-            colormap_name="cityscapes")
-        '''
 
         
         
