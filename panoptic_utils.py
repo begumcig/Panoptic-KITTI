@@ -106,20 +106,6 @@ def get_kitti_dicts(img_dir, pan_dir, keys):
         if panoptic_img[:,:,1][row][col] == 0 and panoptic_img[:,:,2][row][col] == 0:
           iscrowd = 1
 
-      '''
-      if isInstance:
-        if segm_id == 11:
-          segm_id = 0
-        elif segm_id == 13:
-          segm_id = 1
-      elif segm_id == 255:
-        continue
-      elif segm_id ==12:
-        segm_id = 11
-      elif segm_id >= 14:
-        segm_id = segm_id - 2
-      '''
-  
       pan = {
           "id" : id,
           "category_id": segm_id,
@@ -159,19 +145,7 @@ def get_kitti_dicts_json(json_file, image_root, panoptic_root):
       if cat_id == 255:
         continue
       isInstance = cat_id == 13 or cat_id == 11
-      """
-      if isInstance:
-        if cat_id == 11:
-          cat_id =0
-        elif cat_id == 13:
-          cat_id = 1
-      elif cat_id == 255:
-        continue
-      elif cat_id == 12:
-        cat_id = 11
-      elif cat_id >= 14:
-        cat_id = cat_id - 2
-      """
+    
       segment["category_id"] = cat_id
       segment["isthing"] = isInstance
     dataset_dicts.append({
@@ -186,41 +160,11 @@ def get_kitti_dicts_json(json_file, image_root, panoptic_root):
     })
   return dataset_dicts
 
-def get_kitti_dicts_json_q(json_file, image_root, panoptic_root):
-  with open(json_file, "r") as f:
-    dicts = json.load(f)
-  anns = dicts["annotations"]
-  dataset_dicts = []
-  for ann in anns:
-    image_id = ann["image_id"]
-    file_name = os.path.join(image_root,ann["file_name"])
-    height, width = cv2.imread(file_name).shape[:2]
-    panoptic_file = os.path.join(panoptic_root,  ann["file_name"])
-    for segment in ann["segments_info"]:
-      segment.pop("area", None)
-      cat_id = segment["category_id"]
-      if cat_id == 255:
-        continue
-      isInstance = cat_id == 13 or cat_id == 11
-      segment["category_id"] = cat_id
-      segment["isthing"] = isInstance
-    dataset_dicts.append({
-      "file_name": file_name,
-      "image_id":image_id,
-      "height":height,
-      "width":width,
-      "pan_seg_file_name":panoptic_file,
-      "segments_info": ann["segments_info"]
-    })
-    break
 
-  return dataset_dicts
 
 
 def load_kitti(overfit=False):
     if  overfit:
-      #DatasetCatalog.register("d_val", lambda: get_kitti_dicts_json_q("panoptic_val_q.json", image_root, panoptic_root))
-      #MetadataCatalog.get("d_val").set(panoptic_json = "panoptic_val_q.json")
       if os.path.isfile(panoptic_overfit_train_json):
         overfit_root = "overfit_data"
         panoptic_of_root = "overfit_data/panoptic_maps"
@@ -281,14 +225,6 @@ def load_kitti(overfit=False):
       MetadataCatalog.get("d_val").set(panoptic_json = "panoptic_val.json")
       convert_to_panoptic_json("d_train", image_root, panoptic_train_json)
       MetadataCatalog.get("d_train").set(panoptic_json = "panoptic_train.json")
-
-
-
-
-
-
-
-    
 
 
 

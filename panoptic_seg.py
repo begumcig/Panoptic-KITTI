@@ -85,8 +85,8 @@ class PanopticDeepLabKitti(nn.Module):
         backbone_output_shape = self.backbone.output_shape()
         concat_output_shape = {k: ShapeSpec(channels = v.channels * 2 , stride = v.stride) for k,v in backbone_output_shape.items()}
         self.sem_seg_head = build_sem_seg_head(cfg, backbone_output_shape)
-        self.ins_embed_head = build_ins_embed_branch(cfg, concat_output_shape)
-        self.prev_ins_embed_head =  build_prev_frame_ins_head(cfg, backbone_output_shape)
+        self.ins_embed_head = build_ins_embed_branch(cfg, backbone_output_shape)
+        self.prev_ins_embed_head =  build_prev_frame_ins_head(cfg, concat_output_shape)
         self.register_buffer("pixel_mean", torch.tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1), False)
         self.meta = MetadataCatalog.get(cfg.DATASETS.TRAIN[0])
@@ -131,9 +131,10 @@ class PanopticDeepLabKitti(nn.Module):
         
         image_id = batched_inputs[0]["image_id"]
         thing_list = self.meta.thing_dataset_id_to_contiguous_id.values()
+        visualise = False # set to true to save visualizations
         
-        '''
-        if self.training:
+        
+        if self.training and visualise:
             
             prev_img = batched_inputs[0]["prev_image"]
             prev_img = prev_img.cpu().numpy().astype(dtype=np.uint8)
@@ -203,14 +204,14 @@ class PanopticDeepLabKitti(nn.Module):
                 _FRAME_OFFSET_LABEL_FORMAT % image_id,
                 add_colormap=False
             )
-        '''
+        
 
         images = [x["image"].to(self.device) for x in batched_inputs]
         img = images[0].cpu().numpy().astype(dtype=np.uint8)
         img = np.transpose(img, (1,2,0))
         
-        '''
-        if self.training:
+        
+        if self.training and visualise:
         #input image
             vis_utils.save_annotation(
                 img,
@@ -247,7 +248,7 @@ class PanopticDeepLabKitti(nn.Module):
                 _PREV_CENTER_LABEL_FORMAT % image_id,
                 add_colormap = False
             )
-        '''
+        
         
         images = [(x - self.pixel_mean) / self.pixel_std for x in images]
         
@@ -324,10 +325,10 @@ class PanopticDeepLabKitti(nn.Module):
             frame_offset_weights = None
 
         
-        center_results, offset_results, center_losses, offset_losses = self.prev_ins_embed_head(
+        center_results, offset_results, center_losses, offset_losses = self.ins_embed_head(
             current_features, center_targets, center_weights, offset_targets, offset_weights
         )
-        frame_offset_results, frame_offset_losses = self.ins_embed_head(
+        frame_offset_results, frame_offset_losses = self.prev_ins_embed_head(
             concat_features, frame_offset_targets, frame_offset_weights
         )
         
@@ -370,49 +371,49 @@ class PanopticDeepLabKitti(nn.Module):
             panoptic_image = panoptic_image.squeeze(0)
             semantic_prob = F.softmax(r, dim=0)
             
-            '''
-            r_img = r.argmax(dim=0)
-            r_img = r_img.cpu().numpy()
-            vis_utils.save_annotation(
-                r_img,
-                "./output",
-                _SEMANTIC_PREDICTION_FORMAT % image_id,
-                add_colormap = True
-                )
-            c_img = torch.squeeze(c, axis=0).cpu().numpy()
+            if visualise:
+                r_img = r.argmax(dim=0)
+                r_img = r_img.cpu().numpy()
+                vis_utils.save_annotation(
+                    r_img,
+                    "./output",
+                    _SEMANTIC_PREDICTION_FORMAT % image_id,
+                    add_colormap = True
+                    )
+                c_img = torch.squeeze(c, axis=0).cpu().numpy()
 
-            vis_utils.save_annotation(
-                    vis_utils.overlay_heatmap_on_image(
-                    c_img,
-                    img),
-                "./output",
-                _CENTER_HEATMAP_PREDICTION_FORMAT % image_id,
-                add_colormap=False)
-            
-            o_img = o.cpu().numpy()
-            o_img = np.transpose(o_img, (1,2,0))
-            
-            center_offset_prediction_rgb = vis_utils.flow_to_color(o_img)
-            pred_fg_mask = _get_fg_mask(r_img, thing_list)
-            center_offset_prediction_rgb = (center_offset_prediction_rgb * pred_fg_mask)
-            vis_utils.save_annotation(
-                center_offset_prediction_rgb,
-                "./output",
-                _OFFSET_PREDICTION_RGB_FORMAT % image_id,
-                add_colormap=False)
-            
-            of_img = fo.cpu().numpy()
-            of_img = np.transpose(of_img, (1,2,0))
+                vis_utils.save_annotation(
+                        vis_utils.overlay_heatmap_on_image(
+                        c_img,
+                        img),
+                    "./output",
+                    _CENTER_HEATMAP_PREDICTION_FORMAT % image_id,
+                    add_colormap=False)
+                
+                o_img = o.cpu().numpy()
+                o_img = np.transpose(o_img, (1,2,0))
+                
+                center_offset_prediction_rgb = vis_utils.flow_to_color(o_img)
+                pred_fg_mask = _get_fg_mask(r_img, thing_list)
+                center_offset_prediction_rgb = (center_offset_prediction_rgb * pred_fg_mask)
+                vis_utils.save_annotation(
+                    center_offset_prediction_rgb,
+                    "./output",
+                    _OFFSET_PREDICTION_RGB_FORMAT % image_id,
+                    add_colormap=False)
+                
+                of_img = fo.cpu().numpy()
+                of_img = np.transpose(of_img, (1,2,0))
 
-            center_f_offset_prediction_rgb = vis_utils.flow_to_color(of_img)
-            pred_fg_mask = _get_fg_mask(r_img, thing_list)
-            center_f_offset_prediction_rgb = (center_f_offset_prediction_rgb * pred_fg_mask)
-            vis_utils.save_annotation(
-                center_f_offset_prediction_rgb,
-                "./output",
-                _FRAME_OFFSET_PREDICTION_RGB_FORMAT % image_id,
-                add_colormap=False)
-            '''
+                center_f_offset_prediction_rgb = vis_utils.flow_to_color(of_img)
+                pred_fg_mask = _get_fg_mask(r_img, thing_list)
+                center_f_offset_prediction_rgb = (center_f_offset_prediction_rgb * pred_fg_mask)
+                vis_utils.save_annotation(
+                    center_f_offset_prediction_rgb,
+                    "./output",
+                    _FRAME_OFFSET_PREDICTION_RGB_FORMAT % image_id,
+                    add_colormap=False)
+            
 
             # For panoptic segmentation evaluation.
             processed_results[-1]["panoptic_seg"] = (panoptic_image, None)
@@ -611,8 +612,9 @@ def build_prev_frame_ins_head(cfg, input_shape):
     return PREV_FRAME_INS_HEAD_REGISTRY.get(name)(cfg, input_shape)
 
 
-@INS_EMBED_BRANCHES_REGISTRY.register()
-class PanopticDeepLabInsEmbedHeadKitti(DeepLabV3PlusHead):
+
+@PREV_FRAME_INS_HEAD_REGISTRY.register()
+class PanopticDeepLabPrevInsEmbedHeadKitti(DeepLabV3PlusHead):
     @configurable
     def __init__(
         self,
@@ -763,8 +765,8 @@ class PanopticDeepLabInsEmbedHeadKitti(DeepLabV3PlusHead):
         return losses
 
 
-@PREV_FRAME_INS_HEAD_REGISTRY.register()
-class PanopticDeepLabPrevInsEmbedHeadKitti(DeepLabV3PlusHead):
+@INS_EMBED_BRANCHES_REGISTRY.register()
+class PanopticDeepLabInsEmbedHeadKitti(DeepLabV3PlusHead):
     """
     A instance embedding head described in :paper:`Panoptic-DeepLab`.
     """
@@ -973,215 +975,5 @@ class PanopticDeepLabPrevInsEmbedHeadKitti(DeepLabV3PlusHead):
         losses = {"loss_offset": loss * self.offset_loss_weight}
         return losses
 
-'''
-@PREV_FRAME_INS_HEAD_REGISTRY.register()
-class PanopticDeepLabPrevInsEmbedHeadKitti(DeepLabV3PlusHead):
-    """
-    A instance embedding head described in :paper:`Panoptic-DeepLab`.
-    """
 
-    @configurable
-    def __init__(
-        self,
-        input_shape: Dict[str, ShapeSpec],
-        *,
-        decoder_channels: List[int],
-        norm: Union[str, Callable],
-        head_channels: int,
-        center_loss_weight: float,
-        offset_loss_weight: float,
-        **kwargs,
-    ):
-        """
-        NOTE: this interface is experimental.
-        Args:
-            input_shape (ShapeSpec): shape of the input feature
-            decoder_channels (list[int]): a list of output channels of each
-                decoder stage. It should have the same length as "input_shape"
-                (each element in "input_shape" corresponds to one decoder stage).
-            norm (str or callable): normalization for all conv layers.
-            head_channels (int): the output channels of extra convolutions
-                between decoder and predictor.
-            center_loss_weight (float): loss weight for center point prediction.
-            offset_loss_weight (float): loss weight for center offset prediction.
-        """
-        super().__init__(input_shape, decoder_channels=decoder_channels, norm=norm, **kwargs)
-        assert self.decoder_only
 
-        self.center_loss_weight = center_loss_weight
-        self.offset_loss_weight = offset_loss_weight
-        use_bias = norm == ""
-        # center prediction
-        # `head` is additional transform before predictor
-        self.center_head = nn.Sequential(
-            Conv2d(
-                decoder_channels[0],
-                decoder_channels[0],
-                kernel_size=3,
-                padding=1,
-                bias=use_bias,
-                norm=get_norm(norm, decoder_channels[0]),
-                activation=F.relu,
-            ),
-            Conv2d(
-                decoder_channels[0],
-                head_channels,
-                kernel_size=3,
-                padding=1,
-                bias=use_bias,
-                norm=get_norm(norm, head_channels),
-                activation=F.relu,
-            ),
-        )
-        weight_init.c2_xavier_fill(self.center_head[0])
-        weight_init.c2_xavier_fill(self.center_head[1])
-        self.center_predictor = Conv2d(head_channels, 1, kernel_size=1)
-        nn.init.normal_(self.center_predictor.weight, 0, 0.001)
-        nn.init.constant_(self.center_predictor.bias, 0)
-
-        # offset prediction
-        # `head` is additional transform before predictor
-        if self.use_depthwise_separable_conv:
-            # We use a single 5x5 DepthwiseSeparableConv2d to replace
-            # 2 3x3 Conv2d since they have the same receptive field.
-            self.offset_head = DepthwiseSeparableConv2d(
-                decoder_channels[0],
-                head_channels,
-                kernel_size=5,
-                padding=2,
-                norm1=norm,
-                activation1=F.relu,
-                norm2=norm,
-                activation2=F.relu,
-            )
-        else:
-            self.offset_head = nn.Sequential(
-                Conv2d(
-                    decoder_channels[0],
-                    decoder_channels[0],
-                    kernel_size=3,
-                    padding=1,
-                    bias=use_bias,
-                    norm=get_norm(norm, decoder_channels[0]),
-                    activation=F.relu,
-                ),
-                Conv2d(
-                    decoder_channels[0],
-                    head_channels,
-                    kernel_size=3,
-                    padding=1,
-                    bias=use_bias,
-                    norm=get_norm(norm, head_channels),
-                    activation=F.relu,
-                ),
-            )
-            weight_init.c2_xavier_fill(self.offset_head[0])
-            weight_init.c2_xavier_fill(self.offset_head[1])
-        self.offset_predictor = Conv2d(head_channels, 2, kernel_size=1)
-        nn.init.normal_(self.offset_predictor.weight, 0, 0.001)
-        nn.init.constant_(self.offset_predictor.bias, 0)
-
-        self.center_loss = nn.MSELoss(reduction="none")
-        self.offset_loss = nn.L1Loss(reduction="none")
-
-    @classmethod
-    def from_config(cls, cfg, input_shape):
-        if cfg.INPUT.CROP.ENABLED:
-            assert cfg.INPUT.CROP.TYPE == "absolute"
-            train_size = cfg.INPUT.CROP.SIZE
-        else:
-            train_size = None
-        decoder_channels = [cfg.MODEL.INS_EMBED_HEAD.CONVS_DIM] * (
-            len(cfg.MODEL.INS_EMBED_HEAD.IN_FEATURES) - 1
-        ) + [cfg.MODEL.INS_EMBED_HEAD.ASPP_CHANNELS]
-        ret = dict(
-            input_shape={
-                k: v for k, v in input_shape.items() if k in cfg.MODEL.INS_EMBED_HEAD.IN_FEATURES
-            },
-            project_channels=cfg.MODEL.INS_EMBED_HEAD.PROJECT_CHANNELS,
-            aspp_dilations=cfg.MODEL.INS_EMBED_HEAD.ASPP_DILATIONS,
-            aspp_dropout=cfg.MODEL.INS_EMBED_HEAD.ASPP_DROPOUT,
-            decoder_channels=decoder_channels,
-            common_stride=cfg.MODEL.INS_EMBED_HEAD.COMMON_STRIDE,
-            norm=cfg.MODEL.INS_EMBED_HEAD.NORM,
-            train_size=train_size,
-            head_channels=cfg.MODEL.INS_EMBED_HEAD.HEAD_CHANNELS,
-            center_loss_weight=cfg.MODEL.INS_EMBED_HEAD.CENTER_LOSS_WEIGHT,
-            offset_loss_weight=cfg.MODEL.INS_EMBED_HEAD.OFFSET_LOSS_WEIGHT,
-            use_depthwise_separable_conv=cfg.MODEL.SEM_SEG_HEAD.USE_DEPTHWISE_SEPARABLE_CONV,
-        )
-        return ret
-
-    def forward(
-        self,
-        features,
-        center_targets=None,
-        center_weights=None,
-        offset_targets=None,
-        offset_weights=None,
-    ):
-        """
-        Returns:
-            In training, returns (None, dict of losses)
-            In inference, returns (CxHxW logits, {})
-        """
-        center, offset = self.layers(features)
-        if self.training:
-            return (
-                None,
-                None,
-                self.center_losses(center,center_targets, center_weights),
-                self.offset_losses(offset, offset_targets, offset_weights),
-            )
-        else:
-            
-            center = F.interpolate(
-                center, scale_factor=self.common_stride, mode="bilinear", align_corners=False
-            )
-            
-            offset = (
-                F.interpolate(
-                    offset, scale_factor=self.common_stride, mode="bilinear", align_corners=False
-                )
-                * self.common_stride
-            )
-            return center, offset, {}, {}
-
-    def layers(self, features):
-        assert self.decoder_only
-        y = super().layers(features)
-        # center
-        center = self.center_head(y)
-        center = self.center_predictor(center)
-        #offset
-        offset = self.offset_head(y)
-        offset = self.offset_predictor(offset)
-        return center, offset
-
-    def center_losses(self, predictions, targets, weights):
-        predictions = F.interpolate(
-            predictions, scale_factor=self.common_stride, mode="bilinear", align_corners=False
-        )
-        loss = self.center_loss(predictions, targets) * weights
-        if weights.sum() > 0:
-            loss = loss.sum() / weights.sum()
-        else:
-            loss = loss.sum() * 0
-        losses = {"loss_center": loss * self.center_loss_weight}
-        return losses
-
-    def offset_losses(self, predictions, targets, weights):
-        predictions = (
-            F.interpolate(
-                predictions, scale_factor=self.common_stride, mode="bilinear", align_corners=False
-            )
-            * self.common_stride
-        )
-        loss = self.offset_loss(predictions, targets) * weights
-        if weights.sum() > 0:
-            loss = loss.sum() / weights.sum()
-        else:
-            loss = loss.sum() * 0
-        losses = {"loss_offset": loss * self.offset_loss_weight}
-        return losses
-'''
